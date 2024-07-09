@@ -30,7 +30,7 @@ func deliveryHandler(ctx context.Context, inboxCh <-chan string) func(*websocket
 
 func serve(ctx context.Context, inboxCh <-chan string) error {
 	acceptToken := os.Getenv("ACCEPT_TOKEN")
-	authMiddleware := authenticateMiddleware(acceptToken)
+	authMiddleware := authenticationMiddleware(acceptToken)
 	baseHandlerBuilder := newHandlerBuilder(authMiddleware)
 
 	mux := http.NewServeMux()
@@ -63,11 +63,11 @@ func serve(ctx context.Context, inboxCh <-chan string) error {
 	return nil
 }
 
-func authenticateMiddleware(acceptToken string) func(http.Handler) http.Handler {
+func authenticationMiddleware(acceptToken string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authHeader := r.Header.Get("Authorization")
-			if authHeader != acceptToken {
+			authToken := r.URL.Query().Get("authToken")
+			if authToken != acceptToken {
 				w.WriteHeader(http.StatusUnauthorized)
 				w.Write([]byte(`{"message":"unauthorized"}`))
 				return
