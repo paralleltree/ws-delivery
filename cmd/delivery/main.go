@@ -9,12 +9,19 @@ import (
 	"os/signal"
 	"regexp"
 	"slices"
+	"strings"
 	"syscall"
 )
 
 type Message[T any] struct {
 	Body T
 	Err  error
+}
+
+type appConfig struct {
+	SourcePath            string
+	AllowUserID           string
+	AllowInstanceOwnerIDs []string
 }
 
 func main() {
@@ -27,7 +34,20 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	var inboxCh <-chan string // TODO
+	appConf := loadAppConfig()
+
+	predicate := buildPredicateChain(predicateBuilder(appConf.AllowUserID, appConf.AllowInstanceOwnerIDs))
+	srcCh := connectToSource(ctx, appConf.SourcePath, predicate)
+	inboxCh := make(chan string)
+	go func() {
+		for m := range srcCh {
+			if m.Err != nil {
+				fmt.Fprintf(os.Stderr, "read from source: %v\n", m.Err)
+				continue
+			}
+			inboxCh <- m.Body
+		}
+	}()
 
 	serverConf := ServerConfig{
 		Port:        os.Getenv("PORT"),
@@ -38,6 +58,19 @@ func run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func loadAppConfig() appConfig {
+	allowInstanceOwnerIDsString := os.Getenv("ALLOW_INSTANCE_OWNER_IDS")
+	allowInstanceOwnerIDs := make([]string, 0, len(allowInstanceOwnerIDsString))
+	for _, id := range strings.Split(allowInstanceOwnerIDsString, ",") {
+		allowInstanceOwnerIDs = append(allowInstanceOwnerIDs, strings.TrimSpace(id))
+	}
+	return appConfig{
+		AllowUserID:           os.Getenv("ALLOW_USER_ID"),
+		AllowInstanceOwnerIDs: allowInstanceOwnerIDs,
+		SourcePath:            os.Getenv("SOURCE_PATH"),
+	}
 }
 
 func connectToSource(ctx context.Context, path string, predicate func(payload map[string]interface{}) bool) <-chan Message[string] {
