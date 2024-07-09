@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"golang.org/x/net/websocket"
 )
@@ -52,12 +53,18 @@ func serve(ctx context.Context, inboxCh <-chan string) error {
 		close(serverShutdown)
 	}()
 
-	<-ctx.Done()
-	if err := server.Shutdown(ctx); err != nil {
-		return fmt.Errorf("shutdown server")
-	}
-	if err := <-serverShutdown; err != nil {
-		return fmt.Errorf("shutting down server: %w", err)
+	select {
+	case <-ctx.Done():
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			return fmt.Errorf("shutdown server")
+		}
+
+	case err := <-serverShutdown:
+		if err != nil {
+			return fmt.Errorf("shutting down server: %w", err)
+		}
 	}
 
 	return nil
