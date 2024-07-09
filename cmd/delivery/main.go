@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"os/signal"
 	"syscall"
 )
@@ -25,7 +26,11 @@ func main() {
 func run(ctx context.Context) error {
 	var inboxCh <-chan string // TODO
 
-	if err := serve(ctx, inboxCh); err != nil {
+	serverConf := ServerConfig{
+		Port:        os.Getenv("PORT"),
+		AcceptToken: os.Getenv("ACCEPT_TOKEN"),
+	}
+	if err := serve(ctx, serverConf, inboxCh); err != nil {
 		return fmt.Errorf("serve: %w", err)
 	}
 

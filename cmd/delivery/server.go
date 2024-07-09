@@ -85,17 +85,20 @@ func newBroadcasterBuilder(inbox <-chan string) func() (<-chan string, func()) {
 	}
 }
 
-func serve(ctx context.Context, inboxCh <-chan string) error {
-	acceptToken := os.Getenv("ACCEPT_TOKEN")
-	authMiddleware := authenticationMiddleware(acceptToken)
+type ServerConfig struct {
+	Port        string
+	AcceptToken string
+}
+
+func serve(ctx context.Context, conf ServerConfig, inboxCh <-chan string) error {
+	authMiddleware := authenticationMiddleware(conf.AcceptToken)
 	baseHandlerBuilder := newHandlerBuilder(authMiddleware)
 
 	mux := http.NewServeMux()
 	mux.Handle("/ws", baseHandlerBuilder(wsConnectionHandler(ctx, inboxCh)))
 
-	port := 8080
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
+		Addr:    fmt.Sprintf(":%s", conf.Port),
 		Handler: mux,
 	}
 

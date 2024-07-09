@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/hpcloud/tail"
@@ -12,7 +11,7 @@ import (
 func tailLog(ctx context.Context, path string) <-chan Message[string] {
 	ch := make(chan Message[string])
 	go func() {
-		f, err := tail.TailFile(path, tail.Config{Follow: true, Location: &tail.SeekInfo{Offset: 0, Whence: io.SeekEnd}})
+		f, err := tail.TailFile(path, tail.Config{Follow: true})
 		if err != nil {
 			ch <- Message[string]{Err: fmt.Errorf("tail file: %w", err)}
 			return
