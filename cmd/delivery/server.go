@@ -81,7 +81,7 @@ func authenticateMiddleware(acceptToken string) func(http.Handler) http.Handler 
 func newHandlerBuilder(middlewares ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
 	return func(finalHandler http.Handler) http.Handler {
 		h := finalHandler
-		for i := 0; i < len(middlewares)-1; i++ {
+		for i := 0; i < len(middlewares); i++ {
 			h = middlewares[len(middlewares)-i-1](h)
 		}
 		return h
