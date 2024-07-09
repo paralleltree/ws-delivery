@@ -6,26 +6,82 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"golang.org/x/net/websocket"
 )
 
 func wsConnectionHandler(ctx context.Context, inboxCh <-chan string) http.Handler {
+	newChBuilder := newBroadcasterBuilder(inboxCh)
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		websocket.Handler(deliveryHandler(ctx, inboxCh)).ServeHTTP(w, r)
+		ch, cleanup := newChBuilder()
+		defer cleanup()
+		websocket.Handler(deliveryHandler(ctx, ch, cleanup)).ServeHTTP(w, r)
 	})
 }
 
-func deliveryHandler(ctx context.Context, inboxCh <-chan string) func(*websocket.Conn) {
+func deliveryHandler(ctx context.Context, inboxCh <-chan string, cleanup func()) func(*websocket.Conn) {
 	return func(c *websocket.Conn) {
-		defer c.Close()
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		go func() {
+			<-ctx.Done()
+			c.Close()
+		}()
 
 		for v := range inboxCh {
 			if err := websocket.Message.Send(c, v); err != nil {
-				fmt.Fprintf(os.Stderr, "send message: %v", err)
+				fmt.Fprintf(os.Stderr, "send message: %v\n", err)
+				cleanup()
 			}
 		}
+	}
+}
+
+// Returns creating new channel func and cleanup func to prevent blocking channel
+// 接続がない状態でも送信が止まらないように適宜スルーさせる
+func newBroadcasterBuilder(inbox <-chan string) func() (<-chan string, func()) {
+	l := &sync.Mutex{}
+	m := map[chan<- string]struct{}{}
+
+	go func() {
+		for v := range inbox {
+			// copy current living channel
+			l.Lock()
+			living := make([]chan<- string, 0, len(m))
+			for c := range m {
+				living = append(living, c)
+			}
+			l.Unlock()
+
+			// send message to copied channels
+			for _, c := range living {
+				c <- v
+			}
+		}
+	}()
+
+	// returns register new channel func and cleanup func
+	return func() (<-chan string, func()) {
+		ch := make(chan string)
+		l.Lock()
+		defer l.Unlock()
+		m[ch] = struct{}{}
+
+		cleanup := func() {
+			l.Lock()
+			defer l.Unlock()
+			if _, ok := m[ch]; !ok {
+				// prevent double-closing
+				return
+			}
+			delete(m, ch)
+			close(ch)
+		}
+
+		return ch, cleanup
 	}
 }
 
