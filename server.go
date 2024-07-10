@@ -1,4 +1,4 @@
-package main
+package wsdelivery
 
 import (
 	"context"
@@ -90,7 +90,7 @@ type ServerConfig struct {
 	AcceptToken string
 }
 
-func serve(ctx context.Context, conf ServerConfig, inboxCh <-chan string) error {
+func Serve(ctx context.Context, conf ServerConfig, inboxCh <-chan string) error {
 	authMiddleware := authenticationMiddleware(conf.AcceptToken)
 	baseHandlerBuilder := newHandlerBuilder(authMiddleware)
 

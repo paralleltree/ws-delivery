@@ -1,6 +1,10 @@
-package main
+package wsdelivery_test
 
-import "testing"
+import (
+	"testing"
+
+	wsdelivery "github.com/paralleltree/ws-delivery"
+)
 
 func TestParseInstanceOwner(t *testing.T) {
 	cases := []struct {
@@ -22,7 +26,7 @@ func TestParseInstanceOwner(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseInstanceOwner(tt.input)
+			got := wsdelivery.ParseInstanceOwner(tt.input)
 			if tt.want != got {
 				t.Errorf("unexpected result: want %s, but got %s", tt.want, got)
 			}

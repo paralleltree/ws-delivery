@@ -1,4 +1,4 @@
-package main
+package wsdelivery
 
 import (
 	"context"
