@@ -102,30 +102,20 @@ func Serve(ctx context.Context, conf ServerConfig, inboxCh <-chan string) error 
 		Handler: mux,
 	}
 
-	serverShutdown := make(chan error)
 	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			if !errors.Is(err, http.ErrServerClosed) {
-				serverShutdown <- fmt.Errorf("listen and serve: %w", err)
-			}
-		}
-		close(serverShutdown)
-	}()
-
-	select {
-	case <-ctx.Done():
+		<-ctx.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			return fmt.Errorf("shutdown server")
+			fmt.Fprintf(os.Stderr, "shutdown: %v\n", err)
 		}
+	}()
 
-	case err := <-serverShutdown:
-		if err != nil {
-			return fmt.Errorf("shutting down server: %w", err)
+	if err := server.ListenAndServe(); err != nil {
+		if !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("listen and serve: %w", err)
 		}
 	}
-
 	return nil
 }
 
