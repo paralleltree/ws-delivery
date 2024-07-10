@@ -99,8 +99,13 @@ func Serve(ctx context.Context, conf ServerConfig, inboxCh <-chan string) error 
 	requestLogMiddleware := middleware.RequestLogMiddleware()
 	authMiddleware := middleware.AuthenticationMiddleware(conf.AcceptToken)
 	baseHandlerBuilder := newHandlerBuilder(requestLogMiddleware)
+	rootHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"message":"not found"}`))
+	})
 
 	mux := http.NewServeMux()
+	mux.Handle("/", baseHandlerBuilder(rootHandler))
 	mux.Handle("/ws", baseHandlerBuilder(authMiddleware(wsConnectionHandler(inboxCh))))
 
 	server := &http.Server{
