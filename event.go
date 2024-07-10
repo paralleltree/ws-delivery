@@ -77,13 +77,17 @@ func PredicateBuilder(allowUserID string, allowInstanceOwnerID []string) func(pa
 			}
 
 			if instanceID, ok := payload["message.content.location"].(string); ok {
+				if instanceID == "private" {
+					return true
+				}
+
 				instanceOwner := ParseInstanceOwner(instanceID)
-				if !slices.Contains(allowInstanceOwnerID, instanceOwner) {
-					return false
+				if slices.Contains(allowInstanceOwnerID, instanceOwner) {
+					return true
 				}
 			}
 
-			return true
+			return false
 		}
 
 		return false
