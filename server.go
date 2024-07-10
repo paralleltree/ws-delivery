@@ -4,15 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/hnakamur/ltsvlog/v3"
-	"github.com/paralleltree/ws-delivery/lib"
-	"github.com/rs/xid"
+	"github.com/paralleltree/ws-delivery/middleware"
 	"golang.org/x/net/websocket"
 )
 
@@ -20,7 +18,7 @@ func wsConnectionHandler(inboxCh <-chan string) http.Handler {
 	newChBuilder := newBroadcasterBuilder(inboxCh)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		xid := getXID(r.Context())
+		xid := middleware.GetXID(r.Context())
 		ltsvlog.Logger.Info().String("xid", xid).String("event", "wsConnected").Log()
 		ch, cleanup := newChBuilder()
 		defer cleanup()
@@ -98,8 +96,8 @@ type ServerConfig struct {
 }
 
 func Serve(ctx context.Context, conf ServerConfig, inboxCh <-chan string) error {
-	requestLogMiddleware := requestLogMiddleware()
-	authMiddleware := authenticationMiddleware(conf.AcceptToken)
+	requestLogMiddleware := middleware.RequestLogMiddleware()
+	authMiddleware := middleware.AuthenticationMiddleware(conf.AcceptToken)
 	baseHandlerBuilder := newHandlerBuilder(requestLogMiddleware)
 
 	mux := http.NewServeMux()
@@ -125,74 +123,6 @@ func Serve(ctx context.Context, conf ServerConfig, inboxCh <-chan string) error 
 		}
 	}
 	return nil
-}
-
-type contextKey string
-
-const xidKey contextKey = "xid"
-
-func setXID(ctx context.Context, xid string) context.Context {
-	return context.WithValue(ctx, xidKey, xid)
-}
-
-func getXID(ctx context.Context) string {
-	if xid, ok := ctx.Value(xidKey).(string); ok {
-		return xid
-	}
-	return "-"
-}
-
-func requestLogMiddleware() func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// set transaction id
-			xid := xid.New().String()
-			r = r.WithContext(setXID(r.Context(), xid))
-
-			// logging request
-			remote, err := lib.ResolveClientIP(r)
-			if err != nil {
-				remote = "-"
-			}
-			ltsvlog.Logger.Info().
-				String("xid", xid).
-				String("event", "requestHandling").
-				String("method", r.Method).
-				String("path", r.URL.Path).
-				String("url", r.URL.String()).
-				String("remote", remote).
-				String("useragent", r.UserAgent()).
-				Log()
-
-			begin := time.Now()
-			next.ServeHTTP(w, r)
-
-			// logging duration
-			duration := float64(time.Since(begin) / time.Millisecond)
-			ltsvlog.Logger.Info().
-				String("xid", xid).
-				String("event", "requestHandled").
-				Float64("duration", math.Round(duration)).
-				Log()
-		})
-	}
-}
-
-func authenticationMiddleware(acceptToken string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authToken := r.URL.Query().Get("authToken")
-			if authToken != acceptToken {
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte(`{"message":"unauthorized"}`))
-				xid := getXID(r.Context())
-				ltsvlog.Logger.Info().String("xid", xid).String("event", "requestUnauthorized").Log()
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	}
 }
 
 func newHandlerBuilder(middlewares ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
