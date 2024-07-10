@@ -1,5 +1,13 @@
+github.com/fsnotify/fsnotify v1.7.0 h1:8JEhPFa5W2WU7YfeZzPNqzMP6Lwt7L2715Ggo0nosvA=
+github.com/fsnotify/fsnotify v1.7.0/go.mod h1:40Bi/Hjc2AVfZrqy+aj+yEI+/bRxZnMJyTJwOpGvigM=
+github.com/hnakamur/errstack v0.2.0 h1:vB3zuGccLOV0e/eFM74mNU0/oOvo7XPohIuFsJKhS6g=
+github.com/hnakamur/errstack v0.2.0/go.mod h1:od3sg2FcV0HOZ1VGgL/cfn5yvj5hdHZsTF9KDvQQQpY=
+github.com/hnakamur/ltsvlog/v3 v3.3.0 h1:KkA1gLN1Ro7098TGUMZTgIRL2pYWthJIp9GdJtvkwSo=
+github.com/hnakamur/ltsvlog/v3 v3.3.0/go.mod h1:ok1oGR09iFjjwaSvlxAYPDAVmc14H3AkCd5Fpj3BDW4=
 github.com/hpcloud/tail v1.0.0 h1:nfCOvKYfkgYP8hkirhJocXT2+zOD8yUNjXaWfTlyFKI=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
+github.com/rs/xid v1.5.0 h1:mKX4bl4iPYJtEIxp6CYiUuLQ/8DYMoz0PUdtGgMFRVc=
+github.com/rs/xid v1.5.0/go.mod h1:trrq9SKmegXys3aeAKXMUTdJsYXVwGY3RLcfgqegfbg=
 golang.org/x/net v0.27.0 h1:5K3Njcw06/l2y9vpGCSdcxWOYHOUk3dVNGDXN+FvAys=
 golang.org/x/net v0.27.0/go.mod h1:dDi0PyhWNoiUOrAS8uXv/vnScO4wnHQO4mj9fn/RytE=
 golang.org/x/sys v0.22.0 h1:RI27ohtqKCnwULzJLqkv897zojh5/DwS/ENaMzUOaWI=
