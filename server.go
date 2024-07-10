@@ -20,9 +20,12 @@ func wsConnectionHandler(ctx context.Context, inboxCh <-chan string) http.Handle
 	newChBuilder := newBroadcasterBuilder(inboxCh)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		xid := getXID(r.Context())
+		ltsvlog.Logger.Info().String("xid", xid).String("event", "wsConnected").Log()
 		ch, cleanup := newChBuilder()
 		defer cleanup()
 		websocket.Handler(deliveryHandler(ctx, ch, cleanup)).ServeHTTP(w, r)
+		ltsvlog.Logger.Info().String("xid", xid).String("event", "wsDisconnected").Log()
 	})
 }
 
