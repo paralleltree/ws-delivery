@@ -16,7 +16,7 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-func wsConnectionHandler(ctx context.Context, inboxCh <-chan string) http.Handler {
+func wsConnectionHandler(inboxCh <-chan string) http.Handler {
 	newChBuilder := newBroadcasterBuilder(inboxCh)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -24,14 +24,14 @@ func wsConnectionHandler(ctx context.Context, inboxCh <-chan string) http.Handle
 		ltsvlog.Logger.Info().String("xid", xid).String("event", "wsConnected").Log()
 		ch, cleanup := newChBuilder()
 		defer cleanup()
-		websocket.Handler(deliveryHandler(ctx, ch, cleanup)).ServeHTTP(w, r)
+		websocket.Handler(deliveryHandler(ch, cleanup)).ServeHTTP(w, r)
 		ltsvlog.Logger.Info().String("xid", xid).String("event", "wsDisconnected").Log()
 	})
 }
 
-func deliveryHandler(ctx context.Context, inboxCh <-chan string, cleanup func()) func(*websocket.Conn) {
+func deliveryHandler(inboxCh <-chan string, cleanup func()) func(*websocket.Conn) {
 	return func(c *websocket.Conn) {
-		ctx, cancel := context.WithCancel(ctx)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go func() {
 			<-ctx.Done()
@@ -103,7 +103,7 @@ func Serve(ctx context.Context, conf ServerConfig, inboxCh <-chan string) error 
 	baseHandlerBuilder := newHandlerBuilder(requestLogMiddleware)
 
 	mux := http.NewServeMux()
-	mux.Handle("/ws", baseHandlerBuilder(authMiddleware(wsConnectionHandler(ctx, inboxCh))))
+	mux.Handle("/ws", baseHandlerBuilder(authMiddleware(wsConnectionHandler(inboxCh))))
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", conf.Port),
