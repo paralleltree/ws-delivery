@@ -88,6 +88,11 @@ func PredicateBuilder(allowUserID string, allowInstanceOwnerID []string) func(pa
 			}
 
 			return false
+
+		case "friend-offline":
+			if id, ok := payload["message.content.userId"].(string); ok {
+				return id == allowUserID
+			}
 		}
 
 		return false
