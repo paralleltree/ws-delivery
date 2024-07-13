@@ -81,6 +81,12 @@ func PredicateBuilder(allowUserID string, allowInstanceOwnerID []string) func(pa
 					return true
 				}
 
+				if instanceID == "traveling" {
+					if travelingToLocation, ok := payload["message.content.travelingToLocation"].(string); ok {
+						instanceID = travelingToLocation
+					}
+				}
+
 				instanceOwner := ParseInstanceOwner(instanceID)
 				if slices.Contains(allowInstanceOwnerID, instanceOwner) {
 					return true
