@@ -8,7 +8,9 @@ import (
 	"slices"
 )
 
-func ConnectToSource(ctx context.Context, path string, predicate func(payload map[string]interface{}) bool) <-chan Message[string] {
+type MutateRawEvent func(map[string]any) error
+
+func ConnectToSource(ctx context.Context, path string, predicate func(payload map[string]interface{}) (bool, MutateRawEvent)) <-chan Message[string] {
 	ch := make(chan Message[string])
 	go func() {
 		for v := range tailLog(ctx, path) {
@@ -23,10 +25,20 @@ func ConnectToSource(ctx context.Context, path string, predicate func(payload ma
 				continue
 			}
 
-			if predicate(payload) {
-				if raw, ok := payload["raw"].(string); ok {
-					ch <- Message[string]{Body: raw}
+			result, modifyFunc := predicate(payload)
+			if !result {
+				continue
+			}
+
+			if modifyFunc != nil {
+				if err := mutateRawEvent(payload, modifyFunc); err != nil {
+					ch <- Message[string]{Err: fmt.Errorf("modify event: %w", v.Err)}
+					continue
 				}
+			}
+
+			if raw, ok := payload["raw"].(string); ok {
+				ch <- Message[string]{Body: raw}
 			}
 		}
 	}()
@@ -50,35 +62,36 @@ func ParseInstanceOwner(instanceID string) string {
 	return m[2]
 }
 
-func BuildPredicateChain(predicates ...func(payload map[string]interface{}) bool) func(payload map[string]interface{}) bool {
-	return func(payload map[string]interface{}) bool {
+func BuildPredicateChain(predicates ...func(payload map[string]interface{}) (bool, MutateRawEvent)) func(payload map[string]interface{}) (bool, MutateRawEvent) {
+	return func(payload map[string]interface{}) (bool, MutateRawEvent) {
 		for _, pred := range predicates {
-			if pred(payload) {
-				return true
+			if result, mutateFunc := pred(payload); result {
+				return true, mutateFunc
 			}
 		}
-		return false
+		return false, nil
 	}
 }
 
-func PredicateBuilder(allowUserID string, allowInstanceOwnerID []string) func(payload map[string]interface{}) bool {
-	return func(payload map[string]interface{}) bool {
+// Returns boolean value indicating whether the event can be sent and a function to modify the raw content if necessary.
+func PredicateBuilder(allowUserID string, allowInstanceOwnerID []string) func(payload map[string]interface{}) (bool, MutateRawEvent) {
+	return func(payload map[string]interface{}) (bool, MutateRawEvent) {
 		eventType, ok := payload["message.type"].(string)
 		if !ok {
-			return false
+			return false, nil
 		}
 
 		switch eventType {
 		case "friend-location":
 			if id, ok := payload["message.content.user.id"].(string); ok {
 				if allowUserID != id {
-					return false
+					return false, nil
 				}
 			}
 
 			if instanceID, ok := payload["message.content.location"].(string); ok {
 				if instanceID == "private" {
-					return true
+					return true, nil
 				}
 
 				if instanceID == "traveling" {
@@ -89,18 +102,58 @@ func PredicateBuilder(allowUserID string, allowInstanceOwnerID []string) func(pa
 
 				instanceOwner := ParseInstanceOwner(instanceID)
 				if slices.Contains(allowInstanceOwnerID, instanceOwner) {
-					return true
+					return true, nil
 				}
 			}
 
-			return false
+			return false, nil
 
 		case "friend-offline":
 			if id, ok := payload["message.content.userId"].(string); ok {
-				return id == allowUserID
+				return id == allowUserID, nil
 			}
 		}
 
-		return false
+		return false, nil
 	}
+}
+
+// Mutates the raw content in the payload using the modifier function.
+func mutateRawEvent(payload map[string]any, modifier func(map[string]any) error) error {
+	rawJSON, ok := payload["raw"].(string)
+	if !ok {
+		return fmt.Errorf("fetch raw payload")
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(rawJSON), &raw); err != nil {
+		return fmt.Errorf("unmarshal json: %w", err)
+	}
+
+	contentJSON, ok := raw["content"].(string)
+	if !ok {
+		return fmt.Errorf("fetch raw content")
+	}
+	var content map[string]any
+	if err := json.Unmarshal([]byte(contentJSON), &content); err != nil {
+		return fmt.Errorf("unmarshal content: %w", err)
+	}
+
+	if err := modifier(content); err != nil {
+		return err
+	}
+
+	maskedContentJSON, err := json.Marshal(content)
+	if err != nil {
+		return fmt.Errorf("marshal content: %w", err)
+	}
+
+	raw["content"] = string(maskedContentJSON)
+
+	maskedRawJSON, err := json.Marshal(raw)
+	if err != nil {
+		return fmt.Errorf("marshal json: %w", err)
+	}
+	payload["raw"] = string(maskedRawJSON)
+	return nil
 }
