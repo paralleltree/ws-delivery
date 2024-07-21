@@ -104,6 +104,8 @@ func PredicateBuilder(allowUserID string, allowInstanceOwnerID []string) func(pa
 				if slices.Contains(allowInstanceOwnerID, instanceOwner) {
 					return true, nil
 				}
+
+				return true, maskLocationBuilder()
 			}
 
 			return false, nil
@@ -156,4 +158,15 @@ func mutateRawEvent(payload map[string]any, modifier func(map[string]any) error)
 	}
 	payload["raw"] = string(maskedRawJSON)
 	return nil
+}
+
+func maskLocationBuilder() func(map[string]any) error {
+	return func(content map[string]any) error {
+		delete(content, "world")
+		content["worldId"] = "private"
+		content["location"] = "private"
+		content["travelingToLocation"] = "private"
+
+		return nil
+	}
 }
